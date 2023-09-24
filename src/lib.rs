@@ -116,10 +116,6 @@ impl CameraController {
     }
 }
 
-// 画面のサイズの逆比にする
-const WIDTH: usize = 3;
-const HEIGHT: usize = 4;
-
 struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -207,45 +203,25 @@ impl State {
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
-        let mut vertices = [Vertex {
-            position: [0.0, 0.0],
-        }; (HEIGHT+1) * (WIDTH+1)];
-        for i in 0..HEIGHT+1 {
-            for j in 0..WIDTH+1 {
-                let x: f32 = (i as f32) * 2.0 / (HEIGHT as f32) - 1.0;
-                let y: f32 = (j as f32) * 2.0 / (WIDTH as f32) - 1.0;
-                vertices[i*(WIDTH+1)+j] = Vertex {
-                    position: [x, y],
-                }
-            }
-        }
-
-        // let mut indices: &[u16] = &[0, WIDTH as u16, 1, 1, WIDTH as u16 + 1, 2];
-        let mut indices = [0; 6 * WIDTH * HEIGHT];
-        for i in 0..HEIGHT {
-            for j in 0..WIDTH {
-                indices[6 * (i*WIDTH + j)] = (i as u16) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 1] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 2] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
-                indices[6 * (i*WIDTH + j) + 3] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 4] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16 + 1;
-                indices[6 * (i*WIDTH + j) + 5] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
-            }
-        }
+        let vertices = [
+            Vertex { position: [-1.0,-1.0] },
+            Vertex { position: [-1.0, 1.0] },
+            Vertex { position: [ 1.0,-1.0] },
+            Vertex { position: [ 1.0, 1.0] },
+        ];
+        let indices: [u16; 6] = [0, 2, 1, 2, 3, 1];
+        let num_indices: u32 = 6;
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            // contents: bytemuck::cast_slice(VERTICES),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            // contents: bytemuck::cast_slice(INDICES),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let num_indices = 6 * WIDTH as u32 * HEIGHT as u32;
 
         let camera = Camera{
             position: [0.0, 0.0, 0.0],
@@ -380,38 +356,6 @@ impl State {
         self.camera_controller.update_camera(&mut self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera]));
     }
-
-    // fn step(&mut self) {
-    //     self.step = self.step + 10;
-    //     let mut vertices = [Vertex {
-    //         position: [0.0, 0.0, 0.0],
-    //         color: [0.0, 0.0, 0.0],
-    //     }; (HEIGHT+1) * (WIDTH+1)];
-    //     for i in 0..HEIGHT+1 {
-    //         for j in 0..WIDTH+1 {
-    //             let x: f32 = (i as f32) * 2.0 / (HEIGHT as f32) - 1.0;
-    //             let y: f32 = (j as f32) * 2.0 / (WIDTH as f32) - 1.0;
-    //             let pre_col_r = ((i as u32 + self.step) % (HEIGHT as u32 + 1)) as f32;
-    //             let col_r = if pre_col_r*2.0 < HEIGHT as f32 { pre_col_r / HEIGHT as f32 } else { 1.0 - pre_col_r / HEIGHT as f32};
-    //             let pre_col_b = ((j as u32 + self.step) % (WIDTH as u32 + 1)) as f32;
-    //             let col_b = if pre_col_b*2.0 < WIDTH as f32 { pre_col_b / WIDTH as f32 } else { 1.0 - pre_col_b / WIDTH as f32};
-    //             vertices[i*(WIDTH+1)+j] = Vertex {
-    //                 position: [x, y, 0.0],
-    //                 color: [col_r, 0.2, col_b],
-    //                 // color: [i as f32 / HEIGHT as f32, 0.0, j as f32 / WIDTH as f32],
-    //             };
-    //             if i == 0 {
-    //                 println!("{}", col_b);
-    //             }
-    //         }
-    //     }
-    //     println!("");
-    //     self.queue.write_buffer(
-    //         &self.vertex_buffer,
-    //         0,
-    //         bytemuck::cast_slice(&vertices),
-    //     );
-    // }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
