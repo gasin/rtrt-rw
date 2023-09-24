@@ -4,8 +4,10 @@ struct Camera {
     position: vec3<f32>,
     direction: vec3<f32>,
 };
+@group(0) @binding(0)
+var<uniform> camera: Camera;
 
-const camera = Camera(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 0.0, 0.0));
+// const camera = Camera(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 0.0, 0.0));
 
 const focal_length = 1.0;
 const viewpoint_height = 2.0;

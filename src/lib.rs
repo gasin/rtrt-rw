@@ -1,6 +1,6 @@
 use std::iter;
 
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BindGroupLayoutDescriptor};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -32,9 +32,13 @@ impl Vertex {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Camera {
     position: [f32; 3],
+    _padding: u32,
     direction: [f32; 3],
+    _padding2: u32,
 }
 
 // 画面のサイズの逆比にする
@@ -53,6 +57,8 @@ struct State {
     num_indices: u32,
     window: Window,
     camera: Camera,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -125,10 +131,89 @@ impl State {
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
+        let mut vertices = [Vertex {
+            position: [0.0, 0.0],
+        }; (HEIGHT+1) * (WIDTH+1)];
+        for i in 0..HEIGHT+1 {
+            for j in 0..WIDTH+1 {
+                let x: f32 = (i as f32) * 2.0 / (HEIGHT as f32) - 1.0;
+                let y: f32 = (j as f32) * 2.0 / (WIDTH as f32) - 1.0;
+                vertices[i*(WIDTH+1)+j] = Vertex {
+                    position: [x, y],
+                }
+            }
+        }
+
+        // let mut indices: &[u16] = &[0, WIDTH as u16, 1, 1, WIDTH as u16 + 1, 2];
+        let mut indices = [0; 6 * WIDTH * HEIGHT];
+        for i in 0..HEIGHT {
+            for j in 0..WIDTH {
+                indices[6 * (i*WIDTH + j)] = (i as u16) * (WIDTH as u16 + 1) + j as u16;
+                indices[6 * (i*WIDTH + j) + 1] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
+                indices[6 * (i*WIDTH + j) + 2] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
+                indices[6 * (i*WIDTH + j) + 3] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
+                indices[6 * (i*WIDTH + j) + 4] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16 + 1;
+                indices[6 * (i*WIDTH + j) + 5] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
+            }
+        }
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            // contents: bytemuck::cast_slice(VERTICES),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            // contents: bytemuck::cast_slice(INDICES),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let num_indices = 6 * WIDTH as u32 * HEIGHT as u32;
+
+        let camera = Camera{
+            position: [0.0, 0.0, 0.0],
+            _padding: 0,
+            direction: [1.0, 0.0, 0.0],
+            _padding2: 0,
+        };
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[camera]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+        let camera_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("camera_bind_group_layout"),
+        });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("camera_bind_group"),
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -176,51 +261,6 @@ impl State {
             multiview: None,
         });
 
-        let mut vertices = [Vertex {
-            position: [0.0, 0.0],
-        }; (HEIGHT+1) * (WIDTH+1)];
-        for i in 0..HEIGHT+1 {
-            for j in 0..WIDTH+1 {
-                let x: f32 = (i as f32) * 2.0 / (HEIGHT as f32) - 1.0;
-                let y: f32 = (j as f32) * 2.0 / (WIDTH as f32) - 1.0;
-                vertices[i*(WIDTH+1)+j] = Vertex {
-                    position: [x, y],
-                }
-            }
-        }
-
-        // let mut indices: &[u16] = &[0, WIDTH as u16, 1, 1, WIDTH as u16 + 1, 2];
-        let mut indices = [0; 6 * WIDTH * HEIGHT];
-        for i in 0..HEIGHT {
-            for j in 0..WIDTH {
-                indices[6 * (i*WIDTH + j)] = (i as u16) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 1] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 2] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
-                indices[6 * (i*WIDTH + j) + 3] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16;
-                indices[6 * (i*WIDTH + j) + 4] = (i as u16 +1) * (WIDTH as u16 + 1) + j as u16 + 1;
-                indices[6 * (i*WIDTH + j) + 5] = (i as u16) * (WIDTH as u16 + 1) + j as u16 + 1;
-            }
-        }
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            // contents: bytemuck::cast_slice(VERTICES),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            // contents: bytemuck::cast_slice(INDICES),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = 6 * WIDTH as u32 * HEIGHT as u32;
-
-        let camera = Camera{
-            position: [0.0, 0.0, 0.0],
-            direction: [1.0, 0.0, 0.0],
-        };
-
         Self {
             surface,
             device,
@@ -233,6 +273,8 @@ impl State {
             num_indices,
             window,
             camera,
+            camera_buffer,
+            camera_bind_group,
         }
     }
 
@@ -321,6 +363,7 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
