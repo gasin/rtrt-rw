@@ -41,6 +41,81 @@ struct Camera {
     _padding2: u32,
 }
 
+struct CameraController {
+    speed: f32,
+    is_forward_pressed: bool,
+    is_backward_pressed: bool,
+    is_left_pressed: bool,
+    is_right_pressed: bool,
+}
+
+impl CameraController {
+    fn new(speed: f32) -> Self {
+        Self {
+            speed,
+            is_forward_pressed: false,
+            is_backward_pressed: false,
+            is_left_pressed: false,
+            is_right_pressed: false,
+        }
+    }
+
+    fn process_events(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
+                    state,
+                    virtual_keycode: Some(keycode),
+                    ..
+                },
+                ..
+            } => {
+                let is_pressed = *state == ElementState::Pressed;
+                match keycode {
+                    VirtualKeyCode::W | VirtualKeyCode::Up => {
+                        self.is_forward_pressed = is_pressed;
+                        true
+                    }
+                    VirtualKeyCode::A | VirtualKeyCode::Left => {
+                        self.is_left_pressed = is_pressed;
+                        true
+                    }
+                    VirtualKeyCode::S | VirtualKeyCode::Down => {
+                        self.is_backward_pressed = is_pressed;
+                        true
+                    }
+                    VirtualKeyCode::D | VirtualKeyCode::Right => {
+                        self.is_right_pressed = is_pressed;
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn update_camera(&self, camera: &mut Camera) {
+
+        if self.is_forward_pressed {
+            camera.position[0] += camera.direction[0] * self.speed;
+            camera.position[1] += camera.direction[1] * self.speed;
+        }
+        if self.is_backward_pressed {
+            camera.position[0] -= camera.direction[0] * self.speed;
+            camera.position[1] -= camera.direction[1] * self.speed;
+        }
+        if self.is_right_pressed {
+            camera.position[0] += camera.direction[1] * self.speed;
+            camera.position[1] -= camera.direction[0] * self.speed;
+        }
+        if self.is_left_pressed {
+            camera.position[0] -= camera.direction[1] * self.speed;
+            camera.position[1] += camera.direction[0] * self.speed;
+        }
+    }
+}
+
 // 画面のサイズの逆比にする
 const WIDTH: usize = 3;
 const HEIGHT: usize = 4;
@@ -59,6 +134,7 @@ struct State {
     camera: Camera,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    camera_controller: CameraController,
 }
 
 impl State {
@@ -210,6 +286,8 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
+        let camera_controller = CameraController::new(0.2);
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -275,6 +353,7 @@ impl State {
             camera,
             camera_buffer,
             camera_bind_group,
+            camera_controller,
         }
     }
 
@@ -294,10 +373,13 @@ impl State {
 
     #[allow(unused_variables)]
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        self.camera_controller.process_events(event)
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera]));
+    }
 
     // fn step(&mut self) {
     //     self.step = self.step + 10;
