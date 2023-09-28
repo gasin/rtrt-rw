@@ -16,14 +16,14 @@ const viewpoint_height = 2.0;
 fn hit_sphere(center: vec3<f32>, radius: f32, origin: vec3<f32>, ray: vec3<f32>) -> f32 {
     var oc = origin - center;
     var a = dot(ray, ray);
-    var b = 2.0 * dot(oc, ray);
+    var half_b = dot(oc, ray);
     var c = dot(oc, oc) - radius*radius;
-    var discriminant = b*b - 4.0*a*c;
+    var discriminant = half_b*half_b - a*c;
 
     if (discriminant < 0.0) {
         return -1.0;
     } else {
-        return (-b - sqrt(discriminant) ) / (2.0*a);
+        return (-half_b - sqrt(discriminant) ) / a;
     }
 }
 
