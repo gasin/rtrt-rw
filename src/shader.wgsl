@@ -1,32 +1,5 @@
 // Vertex shader
 
-struct Camera {
-    position: vec3<f32>,
-    direction: vec3<f32>,
-};
-@group(0) @binding(0)
-var<uniform> camera: Camera;
-
-// const camera = Camera(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 0.0, 0.0));
-
-const focal_length = 1.0;
-const viewpoint_height = 2.0;
-// const viewpoint_width = viewpoint_height * 16.0 / 9.0;
-
-fn hit_sphere(center: vec3<f32>, radius: f32, origin: vec3<f32>, ray: vec3<f32>) -> f32 {
-    var oc = origin - center;
-    var a = dot(ray, ray);
-    var half_b = dot(oc, ray);
-    var c = dot(oc, oc) - radius*radius;
-    var discriminant = half_b*half_b - a*c;
-
-    if (discriminant < 0.0) {
-        return -1.0;
-    } else {
-        return (-half_b - sqrt(discriminant) ) / a;
-    }
-}
-
 struct VertexInput {
     @location(0) position: vec2<f32>,
 };
@@ -48,20 +21,47 @@ fn vs_main(
 
 // Fragment shader
 
+struct Camera {
+    position: vec3<f32>,
+    direction: vec3<f32>,
+};
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
+struct Ray {
+    orig: vec3<f32>,
+    dir: vec3<f32>,
+};
+fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
+    return ray.orig + t*ray.dir;
+}
+
+struct Sphere {
+    center: vec3<f32>,
+    radius: f32,
+};
+fn sphere_hit(sphere: Sphere, ray: Ray) -> f32 {
+    var oc = ray.orig - sphere.center;
+    var a = dot(ray.dir, ray.dir);
+    var half_b = dot(oc, ray.dir);
+    var c = dot(oc, oc) - sphere.radius*sphere.radius;
+    var discriminant = half_b*half_b - a*c;
+
+    if (discriminant < 0.0) {
+        return -1.0;
+    } else {
+        return (-half_b - sqrt(discriminant) ) / a;
+    }
+}
+
 fn clip(f: f32) -> f32 {
     return (f + 1.0) / 2.0;
 }
-
 fn clip_v3(v: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(clip(v.x), clip(v.y), clip(v.z));
 }
-
 fn unit(v: vec3<f32>) -> vec3<f32> {
     return v / length(v);
-}
-
-fn ray_at(orig: vec3<f32>, ray: vec3<f32>, t: f32) -> vec3<f32> {
-    return orig + ray * t;
 }
 
 @fragment
@@ -71,11 +71,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var view_y = unit(cross(view_x, camera.direction));
 
     var ray_direction = view_center + view_x * in.position.x * 4.0 / 3.0 + view_y * in.position.y;
+    var ray = Ray(camera.position, ray_direction);
 
-    var t = hit_sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, camera.position, ray_direction);
+    var sphere = Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5);
+    var t = sphere_hit(sphere, ray);
     if (t > 0.0) {
-        var n = unit(ray_at(camera.position, ray_direction, t) - vec3<f32>(3.0, 0.0, 0.0));
-        return 0.5 * vec4<f32>(n.z+1.0, n.y+1.0, n.x+1.0, 2.0);
+        var n = unit(ray_at(ray, t) - sphere.center);
+        return vec4<f32>(clip_v3(n), 1.0);
     }
 
     return vec4<f32>(clip_v3(unit(ray_direction)), 1.0);
