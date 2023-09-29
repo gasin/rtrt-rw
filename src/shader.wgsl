@@ -150,20 +150,33 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
     return v / length(v);
 }
 
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn get_ray(position: vec2<f32>) -> Ray {
     var view_center= unit(camera.direction);
     var view_x = unit(vec3<f32>(view_center.y, -view_center.x, 0.0));
     var view_y = unit(cross(view_x, camera.direction));
 
-    var ray_direction = view_center + view_x * in.position.x * 4.0 / 3.0 + view_y * in.position.y;
-    var ray = Ray(camera.position, ray_direction);
+    var ray_direction = view_center + view_x * position.x * 4.0 / 3.0 + view_y * position.y;
+    return Ray(camera.position, ray_direction);
+}
 
+fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: u32) -> vec3<f32> {
+    var color = pixel_color / f32(samples_per_pixel);
+
+    return vec3<f32>(clamp(color.x, 0.0, 1.0), clamp(color.y, 0.0, 1.0), clamp(color.z, 0.0, 1.0));
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var spheres = array<Sphere, SphereNum>(
         Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5),
         Sphere(vec3<f32>(0.0, 0.0, -101.0), 100.0)
     );
+    var samples_per_pixel = 10u;
 
-    var color = ray_color(ray, &spheres);
-    return vec4<f32>(color, 1.0);
+    var color = vec3<f32>(0.0, 0.0, 0.0);
+    for (var sample = 0u; sample < samples_per_pixel; sample = sample+1u) {
+        var ray = get_ray(in.position);
+        color += ray_color(ray, &spheres);
+    }
+    return vec4<f32>(adjust_color(color, samples_per_pixel), 1.0);
 }
