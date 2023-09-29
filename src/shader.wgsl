@@ -35,23 +35,81 @@ struct Ray {
 fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
     return ray.orig + t*ray.dir;
 }
+fn ray_color(ray: Ray, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
+    var rec = HitRecord();
+    if (spheres_hit(spheres, ray, 0.0, 1000000.0, &rec)) {
+        return 0.5 * (rec.normal + vec3<f32>(1.0, 1.0, 1.0));
+    }
+
+    var unit_direction = unit(ray.dir);
+    var a = 0.5 * (unit_direction.y + 1.0);
+    return (1.0 - a)*vec3<f32>(1.0, 1.0, 1.0) + a*vec3<f32>(0.5, 0.7, 1.0);
+}
+
+struct HitRecord {
+    p: vec3<f32>,
+    normal: vec3<f32>,
+    t: f32,
+    front_face: bool,
+};
+fn hit_record_set_face_normal(hit_record_ptr: ptr<function, HitRecord>, r: Ray, outward_normal: vec3<f32>) {
+    // outward_normal is assumed to have unit length
+
+    (*hit_record_ptr).front_face = dot(r.dir, outward_normal) < 0.0;
+    if ((*hit_record_ptr).front_face) {
+        (*hit_record_ptr).normal = outward_normal;
+    } else {
+        (*hit_record_ptr).normal = -outward_normal;
+    }
+}
 
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
 };
-fn sphere_hit(sphere: Sphere, ray: Ray) -> f32 {
+fn sphere_hit(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32, rec: ptr<function, HitRecord>) -> bool {
     var oc = ray.orig - sphere.center;
     var a = dot(ray.dir, ray.dir);
     var half_b = dot(oc, ray.dir);
     var c = dot(oc, oc) - sphere.radius*sphere.radius;
     var discriminant = half_b*half_b - a*c;
-
     if (discriminant < 0.0) {
-        return -1.0;
-    } else {
-        return (-half_b - sqrt(discriminant) ) / a;
+        return false;
     }
+    var sqrtd = sqrt(discriminant);
+
+    var root = (-half_b - sqrtd) / a;
+    if (root <= ray_tmin || ray_tmax <= root) {
+        root = (-half_b + sqrtd) / a;
+        if (root <= ray_tmin || ray_tmax <= root) {
+            return false;
+        }
+    }
+
+    (*rec).t = root;
+    (*rec).p = ray_at(ray, (*rec).t);
+    var outward_normal = ((*rec).p - sphere.center) / sphere.radius;
+    hit_record_set_face_normal(rec, ray, outward_normal);
+
+    return true;
+}
+
+const SphereNum = 2;
+fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_tmin: f32, ray_tmax: f32, hit_record_ptr: ptr<function, HitRecord>) -> bool {
+    var temp_rec = HitRecord();
+    var hit_anything = false;
+    var closest_so_far = ray_tmax;
+
+    for (var i = 0; i < SphereNum; i = i+1) {
+        var sphere = (*spheres)[i];
+        if (sphere_hit(sphere, ray, ray_tmin, closest_so_far, &temp_rec)) {
+            hit_anything = true;
+            closest_so_far = temp_rec.t;
+            *hit_record_ptr = temp_rec;
+        }
+    }
+
+    return hit_anything;
 }
 
 fn clip(f: f32) -> f32 {
@@ -73,12 +131,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var ray_direction = view_center + view_x * in.position.x * 4.0 / 3.0 + view_y * in.position.y;
     var ray = Ray(camera.position, ray_direction);
 
-    var sphere = Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5);
-    var t = sphere_hit(sphere, ray);
-    if (t > 0.0) {
-        var n = unit(ray_at(ray, t) - sphere.center);
-        return vec4<f32>(clip_v3(n), 1.0);
-    }
+    var spheres = array<Sphere, SphereNum>(
+        Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5),
+        Sphere(vec3<f32>(0.0, 0.0, -101.0), 100.0)
+    );
 
-    return vec4<f32>(clip_v3(unit(ray_direction)), 1.0);
+    var color = ray_color(ray, &spheres);
+    return vec4<f32>(color, 1.0);
 }
