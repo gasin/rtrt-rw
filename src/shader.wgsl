@@ -60,6 +60,10 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
     return v / length(v);
 }
 
+fn ray_at(orig: vec3<f32>, ray: vec3<f32>, t: f32) -> vec3<f32> {
+    return orig + ray * t;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var view_center= unit(camera.direction);
@@ -70,7 +74,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var t = hit_sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, camera.position, ray_direction);
     if (t > 0.0) {
-        return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+        var n = unit(ray_at(camera.position, ray_direction, t) - vec3<f32>(3.0, 0.0, 0.0));
+        return 0.5 * vec4<f32>(n.z+1.0, n.y+1.0, n.x+1.0, 2.0);
     }
 
     return vec4<f32>(clip_v3(unit(ray_direction)), 1.0);
