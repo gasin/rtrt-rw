@@ -1,6 +1,20 @@
 const pi = 3.1415926535897932385;
 const infinity = 1000000000.0;
 
+var<private> seed: u32 = 2463534242u;
+fn rand_gen() -> u32 {
+  seed = seed ^ (seed << 13u);
+  seed = seed ^ (seed >> 17u);
+  seed = seed ^ (seed << 5u);
+  return seed;
+}
+fn random() -> f32 {
+    return f32(rand_gen()) / pow(2.0, 32.0);
+}
+fn random_double(min: f32, max: f32) -> f32 {
+    return min + (max-min) * random();
+}
+
 // Vertex shader
 
 struct VertexInput {
