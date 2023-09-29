@@ -24,6 +24,17 @@ fn vs_main(
 
 // Fragment shader
 
+struct Interval {
+    min: f32,
+    max: f32,
+};
+fn interval_contains(interval: Interval, x: f32) -> bool {
+    return interval.min <= x &&  x <= interval.max;
+}
+fn interval_surrounds(interval: Interval, x: f32) -> bool {
+    return interval.min < x && x < interval.max;
+}
+
 struct Camera {
     position: vec3<f32>,
     direction: vec3<f32>,
@@ -40,7 +51,7 @@ fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
 }
 fn ray_color(ray: Ray, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
     var rec = HitRecord();
-    if (spheres_hit(spheres, ray, 0.0, infinity, &rec)) {
+    if (spheres_hit(spheres, ray, Interval(0.0, infinity), &rec)) {
         return 0.5 * (rec.normal + vec3<f32>(1.0, 1.0, 1.0));
     }
 
@@ -70,7 +81,7 @@ struct Sphere {
     center: vec3<f32>,
     radius: f32,
 };
-fn sphere_hit(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32, rec: ptr<function, HitRecord>) -> bool {
+fn sphere_hit(sphere: Sphere, ray: Ray, ray_t: Interval, rec: ptr<function, HitRecord>) -> bool {
     var oc = ray.orig - sphere.center;
     var a = dot(ray.dir, ray.dir);
     var half_b = dot(oc, ray.dir);
@@ -82,9 +93,9 @@ fn sphere_hit(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32, rec: ptr<f
     var sqrtd = sqrt(discriminant);
 
     var root = (-half_b - sqrtd) / a;
-    if (root <= ray_tmin || ray_tmax <= root) {
+    if (!interval_surrounds(ray_t, root)) {
         root = (-half_b + sqrtd) / a;
-        if (root <= ray_tmin || ray_tmax <= root) {
+        if (!interval_surrounds(ray_t, root)) {
             return false;
         }
     }
@@ -98,14 +109,14 @@ fn sphere_hit(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32, rec: ptr<f
 }
 
 const SphereNum = 2;
-fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_tmin: f32, ray_tmax: f32, hit_record_ptr: ptr<function, HitRecord>) -> bool {
+fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_t: Interval, hit_record_ptr: ptr<function, HitRecord>) -> bool {
     var temp_rec = HitRecord();
     var hit_anything = false;
-    var closest_so_far = ray_tmax;
+    var closest_so_far = ray_t.max;
 
     for (var i = 0; i < SphereNum; i = i+1) {
         var sphere = (*spheres)[i];
-        if (sphere_hit(sphere, ray, ray_tmin, closest_so_far, &temp_rec)) {
+        if (sphere_hit(sphere, ray, Interval(ray_t.min, closest_so_far), &temp_rec)) {
             hit_anything = true;
             closest_so_far = temp_rec.t;
             *hit_record_ptr = temp_rec;
