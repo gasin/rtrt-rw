@@ -1,3 +1,6 @@
+const pi = 3.1415926535897932385;
+const infinity = 1000000000.0;
+
 // Vertex shader
 
 struct VertexInput {
@@ -37,7 +40,7 @@ fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
 }
 fn ray_color(ray: Ray, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
     var rec = HitRecord();
-    if (spheres_hit(spheres, ray, 0.0, 1000000.0, &rec)) {
+    if (spheres_hit(spheres, ray, 0.0, infinity, &rec)) {
         return 0.5 * (rec.normal + vec3<f32>(1.0, 1.0, 1.0));
     }
 
