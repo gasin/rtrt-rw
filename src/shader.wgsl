@@ -52,6 +52,8 @@ fn interval_surrounds(interval: Interval, x: f32) -> bool {
 struct Camera {
     position: vec3<f32>,
     direction: vec3<f32>,
+    height: u32,
+    width: u32,
 };
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -155,7 +157,7 @@ fn get_ray(position: vec2<f32>) -> Ray {
     var view_x = unit(vec3<f32>(view_center.y, -view_center.x, 0.0));
     var view_y = unit(cross(view_x, camera.direction));
 
-    var ray_direction = view_center + view_x * position.x * 4.0 / 3.0 + view_y * position.y;
+    var ray_direction = view_center + view_x * position.x * f32(camera.width) / f32(camera.height) + view_y * position.y;
     return Ray(camera.position, ray_direction);
 }
 

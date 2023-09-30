@@ -38,7 +38,11 @@ struct Camera {
     position: [f32; 3],
     _padding: u32,
     direction: [f32; 3],
+    height: u32,
+    width: u32,
     _padding2: u32,
+    _padding3: u32,
+    _padding4: u32,
 }
 
 struct CameraController {
@@ -227,7 +231,11 @@ impl State {
             position: [0.0, 0.0, 0.0],
             _padding: 0,
             direction: [1.0, 0.0, 0.0],
+            height: size.height,
+            width: size.width,
             _padding2: 0,
+            _padding3: 0,
+            _padding4: 0,
         };
         let camera_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -344,6 +352,10 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+
+            self.camera.height = new_size.height;
+            self.camera.width = new_size.width;
+            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera]));
         }
     }
 
