@@ -157,7 +157,10 @@ fn get_ray(position: vec2<f32>) -> Ray {
     var view_x = unit(vec3<f32>(view_center.y, -view_center.x, 0.0));
     var view_y = unit(cross(view_x, camera.direction));
 
-    var ray_direction = view_center + view_x * position.x * f32(camera.width) / f32(camera.height) + view_y * position.y;
+    var x = position.x + random_double(-0.5, 0.5) / f32(camera.width);
+    var y = position.y + random_double(-0.5, 0.5) / f32(camera.height);
+
+    var ray_direction = view_center + view_x * x * f32(camera.width) / f32(camera.height) + view_y * y;
     return Ray(camera.position, ray_direction);
 }
 
