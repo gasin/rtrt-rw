@@ -1,6 +1,9 @@
 const pi = 3.1415926535897932385;
 const infinity = 1000000000.0;
 
+const samples_per_pixel = 1000;
+const max_depth = 2;
+
 var<private> seed: u32 = 2463534242u;
 fn rand_gen() -> u32 {
   seed = seed ^ (seed << 13u);
@@ -13,6 +16,33 @@ fn random() -> f32 {
 }
 fn random_double(min: f32, max: f32) -> f32 {
     return min + (max-min) * random();
+}
+fn vec3_random() -> vec3<f32> {
+    return vec3<f32>(random(), random(), random());
+}
+fn vec3_random_double(min: f32, max: f32) -> vec3<f32> {
+    return vec3<f32>(random_double(min, max), random_double(min, max), random_double(min, max));
+}
+
+fn random_in_unit_sphere() -> vec3<f32> {
+    while true {
+        var v = vec3_random_double(-1.0, 1.0);
+        if (length(v) < 1.0) {
+            return v;
+        }
+    }
+    return vec3<f32>();
+}
+fn random_unit_vector() -> vec3<f32> {
+    return unit(random_in_unit_sphere());
+}
+fn random_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
+    var on_unit_sphere = random_unit_vector();
+    if (dot(on_unit_sphere, normal) > 0.0) {
+        return on_unit_sphere;
+    } else {
+        return -on_unit_sphere;
+    }
 }
 
 // Vertex shader
@@ -65,15 +95,21 @@ struct Ray {
 fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
     return ray.orig + t*ray.dir;
 }
-fn ray_color(ray: Ray, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
+fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
     var rec = HitRecord();
-    if (spheres_hit(spheres, ray, Interval(0.0, infinity), &rec)) {
-        return 0.5 * (rec.normal + vec3<f32>(1.0, 1.0, 1.0));
+    for (var i = 0; i < max_depth; i = i+1) {
+        if (spheres_hit(spheres, *ray_ptr, Interval(0.001, infinity), &rec)) {
+            (*ray_ptr).dir = random_on_hemisphere(rec.normal);
+            (*ray_ptr).orig = rec.p;
+            continue;
+        }
+
+        var unit_direction = unit((*ray_ptr).dir);
+        var a = 0.5 * (unit_direction.z + 1.0);
+        return pow(0.5, f32(i)) * ((1.0 - a)*vec3<f32>(1.0, 1.0, 1.0) + a*vec3<f32>(0.5, 0.7, 1.0));
     }
 
-    var unit_direction = unit(ray.dir);
-    var a = 0.5 * (unit_direction.y + 1.0);
-    return (1.0 - a)*vec3<f32>(1.0, 1.0, 1.0) + a*vec3<f32>(0.5, 0.7, 1.0);
+    return vec3<f32>(0.0, 0.0, 0.0);
 }
 
 struct HitRecord {
@@ -164,7 +200,7 @@ fn get_ray(position: vec2<f32>) -> Ray {
     return Ray(camera.position, ray_direction);
 }
 
-fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: u32) -> vec3<f32> {
+fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
     var color = pixel_color / f32(samples_per_pixel);
 
     return vec3<f32>(clamp(color.x, 0.0, 1.0), clamp(color.y, 0.0, 1.0), clamp(color.z, 0.0, 1.0));
@@ -174,14 +210,14 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: u32) -> vec3<f32> {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var spheres = array<Sphere, SphereNum>(
         Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5),
-        Sphere(vec3<f32>(0.0, 0.0, -101.0), 100.0)
+        Sphere(vec3<f32>(0.0, 0.0, -1001.0), 1000.0)
     );
-    var samples_per_pixel = 10u;
+    seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);
 
     var color = vec3<f32>(0.0, 0.0, 0.0);
-    for (var sample = 0u; sample < samples_per_pixel; sample = sample+1u) {
+    for (var sample = 0; sample < samples_per_pixel; sample = sample+1) {
         var ray = get_ray(in.position);
-        color += ray_color(ray, &spheres);
+        color += ray_color(&ray, &spheres);
     }
     return vec4<f32>(adjust_color(color, samples_per_pixel), 1.0);
 }
