@@ -99,7 +99,7 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
     var rec = HitRecord();
     for (var i = 0; i < max_depth; i = i+1) {
         if (spheres_hit(spheres, *ray_ptr, Interval(0.001, infinity), &rec)) {
-            (*ray_ptr).dir = random_on_hemisphere(rec.normal);
+            (*ray_ptr).dir = rec.normal + random_unit_vector();
             (*ray_ptr).orig = rec.p;
             continue;
         }
