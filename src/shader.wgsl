@@ -5,6 +5,8 @@ const delta = 0.00000001;
 const samples_per_pixel = 100;
 const max_depth = 10;
 
+const SphereNum = 4;
+
 var<private> seed: u32 = 2463534242u;
 fn rand_gen() -> u32 {
   seed = seed ^ (seed << 13u);
@@ -124,7 +126,7 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
 
 struct Material {
     // 0 .. lambertian, 1 .. metal
-    material: u32,
+    material: i32,
     albedo: vec3<f32>,
 };
 fn scatter(
@@ -134,18 +136,28 @@ fn scatter(
     attenuation_ptr: ptr<function, vec3<f32>>,
     scattered_ptr: ptr<function, Ray>
 ) -> bool {
-    if (material.material == 0u) {
-        var scatter_direction = (*rec_ptr).normal + random_unit_vector();
+    switch material.material {
+        case 0: { // lambertian
+            var scatter_direction = (*rec_ptr).normal + random_unit_vector();
 
-        if (near_zero(scatter_direction)) {
-            scatter_direction = (*rec_ptr).normal;
+            if (near_zero(scatter_direction)) {
+                scatter_direction = (*rec_ptr).normal;
+            }
+
+            *scattered_ptr = Ray((*rec_ptr).p, scatter_direction);
+            *attenuation_ptr = material.albedo;
+            return true;
         }
-
-        *scattered_ptr = Ray((*rec_ptr).p, scatter_direction);
-        *attenuation_ptr = material.albedo;
-        return true;
+        case 1: { // metal
+            var reflected = reflect(unit(r_in.dir), (*rec_ptr).normal);
+            *scattered_ptr = Ray((*rec_ptr).p, reflected);
+            *attenuation_ptr = material.albedo;
+            return true;
+        }
+        default: {
+            return false;
+        }
     }
-    return false;
 }
 
 struct HitRecord {
@@ -199,7 +211,6 @@ fn sphere_hit(sphere: Sphere, ray: Ray, ray_t: Interval, rec: ptr<function, HitR
     return true;
 }
 
-const SphereNum = 2;
 fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_t: Interval, hit_record_ptr: ptr<function, HitRecord>) -> bool {
     var temp_rec = HitRecord();
     var hit_anything = false;
@@ -247,12 +258,16 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var material_ground = Material(0u, vec3<f32>(0.8, 0.8, 0.0));
-    var material_center = Material(0u, vec3<f32>(0.7, 0.3, 0.3));
+    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0));
+    var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3));
+    var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8));
+    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2));
 
     var spheres = array<Sphere, SphereNum>(
         Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, material_center),
-        Sphere(vec3<f32>(0.0, 0.0, -1001.0), 1000.0, material_ground)
+        Sphere(vec3<f32>(0.0, 0.0, -1000.5), 1000.0, material_ground),
+        Sphere(vec3<f32>(3.0, -1.0, 0.0), 0.5, material_left),
+        Sphere(vec3<f32>(3.0, 1.0, 0.0), 0.5, material_right),
     );
     seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);
 
