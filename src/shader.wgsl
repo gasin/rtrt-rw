@@ -5,7 +5,8 @@ const delta = 0.00000001;
 const samples_per_pixel = 100;
 const max_depth = 10;
 
-const SphereNum = 4;
+// const SphereNum: i32 = 22*22+4;
+const SphereNum: i32 = 29;
 
 var<private> seed: u32 = 2463534242u;
 fn rand_gen() -> u32 {
@@ -251,6 +252,9 @@ fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_t
 
     for (var i = 0; i < SphereNum; i = i+1) {
         var sphere = (*spheres)[i];
+        if (sphere.radius < 0.001) {
+            continue;
+        }
         if (sphere_hit(sphere, ray, Interval(ray_t.min, closest_so_far), &temp_rec)) {
             hit_anything = true;
             closest_so_far = temp_rec.t;
@@ -272,9 +276,10 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
 }
 
 fn get_ray(position: vec2<f32>) -> Ray {
-    var view_center= unit(camera.direction);
+    // var view_center= unit(camera.direction);
+    var view_center = unit(camera.direction - camera.position);
     var view_x = unit(vec3<f32>(view_center.y, -view_center.x, 0.0));
-    var view_y = unit(cross(view_x, camera.direction));
+    var view_y = unit(cross(view_x, camera.direction - camera.position));
 
     var x = position.x + random_double(-0.5, 0.5) / f32(camera.width);
     var y = position.y + random_double(-0.5, 0.5) / f32(camera.height);
@@ -291,19 +296,42 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0), 0.0, 1.5);
-    // var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3), 0.0, 0.0);
-    var material_center = Material(2, vec3<f32>(0.7, 0.3, 0.3), 0.0, 1.5);
-    // var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8), 0.3, 0.0);
-    var material_left = Material(2, vec3<f32>(0.8, 0.8, 0.8), 0.0, 1.5);
-    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2), 1.0, 1.5);
+    var spheres = array<Sphere, SphereNum>();
 
-    var spheres = array<Sphere, SphereNum>(
-        Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, material_center),
-        Sphere(vec3<f32>(0.0, 0.0, -1000.5), 1000.0, material_ground),
-        Sphere(vec3<f32>(3.0, -1.0, 0.0), 0.5, material_left),
-        Sphere(vec3<f32>(3.0, 1.0, 0.0), 0.5, material_right),
-    );
+    for (var a = -2; a <= 2; a = a+1) {
+        for (var b = -2; b <= 2; b = b+1) {
+            var choose_mat = random();
+            var center = vec3<f32>(f32(a*2) + 0.9*random(), f32(b*2) + 0.9*random(), 0.2);
+            var index = (a+2)*5 + b+2;
+
+            if (choose_mat < 0.8) {
+                // diffuse
+                var albedo = vec3_random() * vec3_random();
+                var sphere_material = Material(0, albedo, 0.0, 0.0);
+                spheres[index] = Sphere(center, 0.2, sphere_material);
+            } else if (choose_mat < 0.95) {
+                // metal
+                var albedo = vec3_random_double(0.5, 1.0);
+                var fuzz = random_double(0.0, 0.5);
+                var sphere_material = Material(1, albedo, fuzz, 0.0);
+                spheres[index] = Sphere(center, 0.2, sphere_material);
+            } else {
+                // glass
+                var sphere_material = Material(2, vec3<f32>(), 0.0, 1.5);
+                spheres[index] = Sphere(center, 0.2, sphere_material);
+            }
+        }
+    }
+
+    var material_ground = Material(0, vec3<f32>(0.5, 0.5, 0.5), 0.0, 1.5);
+    spheres[25] = Sphere(vec3<f32>(0.0, 0.0, -1000.0), 1000.0, material_ground);
+    var material1 = Material(2, vec3<f32>(), 0.0, 1.5);
+    spheres[26] = Sphere(vec3<f32>(0.0, 0.0, 1.0), 1.0, material1);
+    var material2 = Material(0, vec3<f32>(0.4, 0.2, 0.1), 0.0, 0.0);
+    spheres[27] = Sphere(vec3<f32>(-4.0, 0.0, 1.0), 1.0, material2);
+    var material3 = Material(1, vec3<f32>(0.7, 0.6, 0.5), 0.0, 0.0);
+    spheres[28] = Sphere(vec3<f32>(4.0, 0.0, 1.0), 1.0, material3);
+
     seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);
 
     var color = vec3<f32>(0.0, 0.0, 0.0);

@@ -101,21 +101,27 @@ impl CameraController {
 
     fn update_camera(&self, camera: &mut Camera) {
 
+        let direction = [
+            camera.position[0] - camera.direction[0],
+            camera.position[1] - camera.direction[1],
+            camera.position[2] - camera.direction[2],
+        ];
+
         if self.is_forward_pressed {
-            camera.position[0] += camera.direction[0] * self.speed;
-            camera.position[1] += camera.direction[1] * self.speed;
+            camera.position[0] += direction[0] * self.speed;
+            camera.position[1] += direction[1] * self.speed;
         }
         if self.is_backward_pressed {
-            camera.position[0] -= camera.direction[0] * self.speed;
-            camera.position[1] -= camera.direction[1] * self.speed;
+            camera.position[0] -= direction[0] * self.speed;
+            camera.position[1] -= direction[1] * self.speed;
         }
         if self.is_right_pressed {
-            camera.position[0] += camera.direction[1] * self.speed;
-            camera.position[1] -= camera.direction[0] * self.speed;
+            camera.position[0] += direction[1] * self.speed;
+            camera.position[1] -= direction[0] * self.speed;
         }
         if self.is_left_pressed {
-            camera.position[0] -= camera.direction[1] * self.speed;
-            camera.position[1] += camera.direction[0] * self.speed;
+            camera.position[0] -= direction[1] * self.speed;
+            camera.position[1] += direction[0] * self.speed;
         }
     }
 }
@@ -228,9 +234,9 @@ impl State {
         });
 
         let camera = Camera{
-            position: [0.0, 0.0, 0.0],
+            position: [6.0, 5.0, 2.0],
             _padding: 0,
-            direction: [1.0, 0.0, 0.0],
+            direction: [0.0, 0.0, 0.0],
             height: size.height,
             width: size.width,
             _padding2: 0,
