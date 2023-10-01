@@ -114,6 +114,7 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
                 *ray_ptr = scattered;
                 continue;
             }
+            return vec3<f32>(0.0, 0.0, 0.0);
         }
 
         var unit_direction = unit((*ray_ptr).dir);
@@ -128,6 +129,7 @@ struct Material {
     // 0 .. lambertian, 1 .. metal
     material: i32,
     albedo: vec3<f32>,
+    fuzz: f32,
 };
 fn scatter(
     material: Material,
@@ -150,9 +152,9 @@ fn scatter(
         }
         case 1: { // metal
             var reflected = reflect(unit(r_in.dir), (*rec_ptr).normal);
-            *scattered_ptr = Ray((*rec_ptr).p, reflected);
+            *scattered_ptr = Ray((*rec_ptr).p, reflected + material.fuzz*random_unit_vector());
             *attenuation_ptr = material.albedo;
-            return true;
+            return dot((*scattered_ptr).dir, (*rec_ptr).normal) > 0.0;
         }
         default: {
             return false;
@@ -258,10 +260,10 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0));
-    var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3));
-    var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8));
-    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2));
+    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0), 0.0);
+    var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3), 0.0);
+    var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8), 0.3);
+    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2), 1.0);
 
     var spheres = array<Sphere, SphereNum>(
         Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, material_center),
