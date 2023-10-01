@@ -1,8 +1,9 @@
 const pi = 3.1415926535897932385;
 const infinity = 1000000000.0;
+const delta = 0.00000001;
 
-const samples_per_pixel = 1000;
-const max_depth = 2;
+const samples_per_pixel = 100;
+const max_depth = 10;
 
 var<private> seed: u32 = 2463534242u;
 fn rand_gen() -> u32 {
@@ -43,6 +44,10 @@ fn random_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
     } else {
         return -on_unit_sphere;
     }
+}
+
+fn near_zero(v: vec3<f32>) -> bool {
+    return length(v) < delta;
 }
 
 // Vertex shader
@@ -97,24 +102,56 @@ fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
 }
 fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
     var rec = HitRecord();
+    var multiplier = vec3<f32>(1.0, 1.0, 1.0);
     for (var i = 0; i < max_depth; i = i+1) {
         if (spheres_hit(spheres, *ray_ptr, Interval(0.001, infinity), &rec)) {
-            (*ray_ptr).dir = rec.normal + random_unit_vector();
-            (*ray_ptr).orig = rec.p;
-            continue;
+            var scattered = Ray();
+            var attenuation = vec3<f32>();
+            if (scatter(rec.material, *ray_ptr, &rec, &attenuation, &scattered)) {
+                multiplier = multiplier * attenuation;
+                *ray_ptr = scattered;
+                continue;
+            }
         }
 
         var unit_direction = unit((*ray_ptr).dir);
         var a = 0.5 * (unit_direction.z + 1.0);
-        return pow(0.5, f32(i)) * ((1.0 - a)*vec3<f32>(1.0, 1.0, 1.0) + a*vec3<f32>(0.5, 0.7, 1.0));
+        return multiplier * ((1.0 - a)*vec3<f32>(1.0, 1.0, 1.0) + a*vec3<f32>(0.5, 0.7, 1.0));
     }
 
     return vec3<f32>(0.0, 0.0, 0.0);
 }
 
+struct Material {
+    // 0 .. lambertian, 1 .. metal
+    material: u32,
+    albedo: vec3<f32>,
+};
+fn scatter(
+    material: Material,
+    r_in: Ray,
+    rec_ptr: ptr<function, HitRecord>,
+    attenuation_ptr: ptr<function, vec3<f32>>,
+    scattered_ptr: ptr<function, Ray>
+) -> bool {
+    if (material.material == 0u) {
+        var scatter_direction = (*rec_ptr).normal + random_unit_vector();
+
+        if (near_zero(scatter_direction)) {
+            scatter_direction = (*rec_ptr).normal;
+        }
+
+        *scattered_ptr = Ray((*rec_ptr).p, scatter_direction);
+        *attenuation_ptr = material.albedo;
+        return true;
+    }
+    return false;
+}
+
 struct HitRecord {
     p: vec3<f32>,
     normal: vec3<f32>,
+    material: Material,
     t: f32,
     front_face: bool,
 };
@@ -132,6 +169,7 @@ fn hit_record_set_face_normal(hit_record_ptr: ptr<function, HitRecord>, r: Ray, 
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
+    material: Material,
 };
 fn sphere_hit(sphere: Sphere, ray: Ray, ray_t: Interval, rec: ptr<function, HitRecord>) -> bool {
     var oc = ray.orig - sphere.center;
@@ -156,6 +194,7 @@ fn sphere_hit(sphere: Sphere, ray: Ray, ray_t: Interval, rec: ptr<function, HitR
     (*rec).p = ray_at(ray, (*rec).t);
     var outward_normal = ((*rec).p - sphere.center) / sphere.radius;
     hit_record_set_face_normal(rec, ray, outward_normal);
+    (*rec).material = sphere.material;
 
     return true;
 }
@@ -208,9 +247,12 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    var material_ground = Material(0u, vec3<f32>(0.8, 0.8, 0.0));
+    var material_center = Material(0u, vec3<f32>(0.7, 0.3, 0.3));
+
     var spheres = array<Sphere, SphereNum>(
-        Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5),
-        Sphere(vec3<f32>(0.0, 0.0, -1001.0), 1000.0)
+        Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, material_center),
+        Sphere(vec3<f32>(0.0, 0.0, -1001.0), 1000.0, material_ground)
     );
     seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);
 
