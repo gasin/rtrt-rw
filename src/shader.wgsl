@@ -52,6 +52,13 @@ fn near_zero(v: vec3<f32>) -> bool {
     return length(v) < delta;
 }
 
+fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
+    // Use Schlick's approximation for reflectance
+    var r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+    r0 = r0 * r0;
+    return r0 + (1.0 - r0) * pow((1.0-cosine), 5.0);
+}
+
 // Vertex shader
 
 struct VertexInput {
@@ -126,10 +133,11 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
 }
 
 struct Material {
-    // 0 .. lambertian, 1 .. metal
+    // 0 .. lambertian, 1 .. metal, 2 .. dielectric
     material: i32,
     albedo: vec3<f32>,
     fuzz: f32,
+    ir: f32,
 };
 fn scatter(
     material: Material,
@@ -155,6 +163,29 @@ fn scatter(
             *scattered_ptr = Ray((*rec_ptr).p, reflected + material.fuzz*random_unit_vector());
             *attenuation_ptr = material.albedo;
             return dot((*scattered_ptr).dir, (*rec_ptr).normal) > 0.0;
+        }
+        case 2: { // dielectric
+            *attenuation_ptr = vec3<f32>(1.0, 1.0, 1.0);
+            var refraction_ratio = 1.0 / material.ir;
+            if (!(*rec_ptr).front_face) {
+                refraction_ratio = material.ir;
+            }
+
+            var unit_direction = unit(r_in.dir);
+            var cos_theta = min(dot(-unit_direction, (*rec_ptr).normal), 1.0);
+            var sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+
+            var cannot_refract = refraction_ratio * sin_theta > 1.0;
+            var direction = vec3<f32>();
+
+            if (cannot_refract || reflectance(cos_theta, refraction_ratio) > random()) {
+                direction = reflect(unit_direction, (*rec_ptr).normal);
+            } else {
+                direction = refract(unit_direction, (*rec_ptr).normal, refraction_ratio);
+            }
+
+            *scattered_ptr = Ray((*rec_ptr).p, direction);
+            return true;
         }
         default: {
             return false;
@@ -260,10 +291,12 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0), 0.0);
-    var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3), 0.0);
-    var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8), 0.3);
-    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2), 1.0);
+    var material_ground = Material(0, vec3<f32>(0.8, 0.8, 0.0), 0.0, 1.5);
+    // var material_center = Material(0, vec3<f32>(0.7, 0.3, 0.3), 0.0, 0.0);
+    var material_center = Material(2, vec3<f32>(0.7, 0.3, 0.3), 0.0, 1.5);
+    // var material_left = Material(1, vec3<f32>(0.8, 0.8, 0.8), 0.3, 0.0);
+    var material_left = Material(2, vec3<f32>(0.8, 0.8, 0.8), 0.0, 1.5);
+    var material_right = Material(1, vec3<f32>(0.8, 0.6, 0.2), 1.0, 1.5);
 
     var spheres = array<Sphere, SphereNum>(
         Sphere(vec3<f32>(3.0, 0.0, 0.0), 0.5, material_center),
