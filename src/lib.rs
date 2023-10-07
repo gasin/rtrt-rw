@@ -45,6 +45,14 @@ struct Material {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Sphere {
+    center: [f32; 3],
+    radius: f32,
+    material: Material,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Camera {
     position: [f32; 3],
     _padding: u32,
@@ -262,40 +270,109 @@ impl State {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let materials = [
-            Material{
-                material: 0,
-                fuzz: 0.0,
-                _padding1: [0, 0],
-                albedo: [0.5, 0.5, 0.5],
-                ir: 1.5,
+        let mut spheres: Vec<Sphere> = Vec::new();
+        spheres.push(
+            Sphere {
+                center: [0.0, 0.0, -1000.0],
+                radius: 1000.0,
+                material: Material{
+                    material: 0,
+                    fuzz: 0.0,
+                    _padding1: [0, 0],
+                    albedo: [0.5, 0.5, 0.5],
+                    ir: 1.5,
+                },
             },
-            Material{
-                material: 2,
-                fuzz: 0.0,
-                _padding1: [0, 0],
-                albedo: [0.5, 0.5, 0.5],
-                ir: 1.5,
+        );
+        spheres.push(
+            Sphere {
+                center: [0.0, 0.0, 1.0],
+                radius: 1.0,
+                material: Material{
+                    material: 2,
+                    fuzz: 0.0,
+                    _padding1: [0, 0],
+                    albedo: [0.5, 0.5, 0.5],
+                    ir: 1.5,
+                }
             },
-            Material{
-                material: 0,
-                fuzz: 0.0,
-                _padding1: [0, 0],
-                albedo: [0.4, 0.2, 0.1],
-                ir: 0.0,
+        );
+        spheres.push(
+            Sphere {
+                center: [4.0, 0.0, 1.0],
+                radius: 1.0,
+                material: Material{
+                    material: 0,
+                    fuzz: 0.0,
+                    _padding1: [0, 0],
+                    albedo: [0.4, 0.2, 0.1],
+                    ir: 0.0,
+                },
             },
-            Material{
-                material: 1,
-                fuzz: 0.0,
-                _padding1: [0, 0],
-                albedo: [0.7, 0.6, 0.5],
-                ir: 0.0,
-            },
-        ];
+        );
+        spheres.push(
+            Sphere {
+                center: [-4.0, 0.0, 1.0],
+                radius: 1.0,
+                material: Material{
+                    material: 1,
+                    fuzz: 0.0,
+                    _padding1: [0, 0],
+                    albedo: [0.7, 0.6, 0.5],
+                    ir: 0.0,
+                },
+            }
+        );
+        // let spheres = [
+        //     Sphere {
+        //         center: [0.0, 0.0, -1000.0],
+        //         radius: 1000.0,
+        //         material: Material{
+        //             material: 0,
+        //             fuzz: 0.0,
+        //             _padding1: [0, 0],
+        //             albedo: [0.5, 0.5, 0.5],
+        //             ir: 1.5,
+        //         },
+        //     },
+        //     Sphere {
+        //         center: [0.0, 0.0, 1.0],
+        //         radius: 1.0,
+        //         material: Material{
+        //             material: 2,
+        //             fuzz: 0.0,
+        //             _padding1: [0, 0],
+        //             albedo: [0.5, 0.5, 0.5],
+        //             ir: 1.5,
+        //         }
+        //     },
+        //     Sphere {
+        //         center: [4.0, 0.0, 1.0],
+        //         radius: 1.0,
+        //         material: Material{
+        //             material: 0,
+        //             fuzz: 0.0,
+        //             _padding1: [0, 0],
+        //             albedo: [0.4, 0.2, 0.1],
+        //             ir: 0.0,
+        //         },
+        //     },
+        //     Sphere {
+        //         center: [-4.0, 0.0, 1.0],
+        //         radius: 1.0,
+        //         material: Material{
+        //             material: 1,
+        //             fuzz: 0.0,
+        //             _padding1: [0, 0],
+        //             albedo: [0.7, 0.6, 0.5],
+        //             ir: 0.0,
+        //         },
+        //     }
+        // ];
         let material_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Material Buffer"),
-                contents: bytemuck::cast_slice(&materials),
+                contents: bytemuck::cast_slice(&spheres),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             }
         );
