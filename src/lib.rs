@@ -1,4 +1,5 @@
 use std::iter;
+use rand::prelude::*;
 
 use wgpu::{util::DeviceExt, BindGroupLayoutDescriptor};
 use winit::{
@@ -271,6 +272,64 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
         let mut spheres: Vec<Sphere> = Vec::new();
+        let mut rng = rand::thread_rng();
+        for i in -2..=2 {
+            for j in -2..=2 {
+                let choose_mat: f32 = rng.gen();
+                let center = [(i as f32) *2.0 + 0.9*rng.gen::<f32>(), (j as f32)*2.0 + 0.9*rng.gen::<f32>(), 0.2];
+
+                if choose_mat < 0.8 {
+                    // diffuse
+                    let albedo = [
+                        rng.gen::<f32>()*rng.gen::<f32>(),
+                        rng.gen::<f32>()*rng.gen::<f32>(),
+                        rng.gen::<f32>()*rng.gen::<f32>(),
+                    ];
+                    let sphere_material = Material {
+                        material: 0,
+                        fuzz: 0.0,
+                        _padding1: [0, 0],
+                        albedo: albedo,
+                        ir: 0.0,
+                    };
+                    spheres.push(Sphere {
+                        center: center,
+                        radius: 0.2,
+                        material: sphere_material,
+                    });
+                } else if choose_mat < 0.95 {
+                    // metal
+                    let albedo = [rng.gen::<f32>() / 2.0 + 0.5, rng.gen::<f32>() / 2.0 + 0.5, rng.gen::<f32>() / 2.0 + 0.5];
+                    let fuzz = rng.gen::<f32>() / 2.0;
+                    let sphere_material = Material {
+                        material: 1,
+                        fuzz: fuzz,
+                        _padding1: [0, 0],
+                        albedo: albedo,
+                        ir: 0.0,
+                    };
+                    spheres.push(Sphere {
+                        center: center,
+                        radius: 0.2,
+                        material: sphere_material,
+                    });
+                } else {
+                    // glass
+                    let sphere_material = Material {
+                        material: 2,
+                        fuzz: 0.0,
+                        _padding1: [0, 0],
+                        albedo: [0.0, 0.0, 0.0],
+                        ir: 1.5,
+                    };
+                    spheres.push(Sphere {
+                        center: center,
+                        radius: 0.2,
+                        material: sphere_material,
+                    });
+                }
+            }
+        }
         spheres.push(
             Sphere {
                 center: [0.0, 0.0, -1000.0],
@@ -323,52 +382,6 @@ impl State {
                 },
             }
         );
-        // let spheres = [
-        //     Sphere {
-        //         center: [0.0, 0.0, -1000.0],
-        //         radius: 1000.0,
-        //         material: Material{
-        //             material: 0,
-        //             fuzz: 0.0,
-        //             _padding1: [0, 0],
-        //             albedo: [0.5, 0.5, 0.5],
-        //             ir: 1.5,
-        //         },
-        //     },
-        //     Sphere {
-        //         center: [0.0, 0.0, 1.0],
-        //         radius: 1.0,
-        //         material: Material{
-        //             material: 2,
-        //             fuzz: 0.0,
-        //             _padding1: [0, 0],
-        //             albedo: [0.5, 0.5, 0.5],
-        //             ir: 1.5,
-        //         }
-        //     },
-        //     Sphere {
-        //         center: [4.0, 0.0, 1.0],
-        //         radius: 1.0,
-        //         material: Material{
-        //             material: 0,
-        //             fuzz: 0.0,
-        //             _padding1: [0, 0],
-        //             albedo: [0.4, 0.2, 0.1],
-        //             ir: 0.0,
-        //         },
-        //     },
-        //     Sphere {
-        //         center: [-4.0, 0.0, 1.0],
-        //         radius: 1.0,
-        //         material: Material{
-        //             material: 1,
-        //             fuzz: 0.0,
-        //             _padding1: [0, 0],
-        //             albedo: [0.7, 0.6, 0.5],
-        //             ir: 0.0,
-        //         },
-        //     }
-        // ];
         let material_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Material Buffer"),

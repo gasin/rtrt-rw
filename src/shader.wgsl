@@ -5,10 +5,6 @@ const delta = 0.00000001;
 const samples_per_pixel = 100;
 const max_depth = 10;
 
-// const SphereNum: i32 = 22*22+4;
-// const SphereNum: i32 = 29;
-const SphereNum: i32 = 4;
-
 var<private> seed: u32 = 2463534242u;
 fn rand_gen() -> u32 {
   seed = seed ^ (seed << 13u);
@@ -111,11 +107,11 @@ struct Ray {
 fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
     return ray.orig + t*ray.dir;
 }
-fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, SphereNum>>) -> vec3<f32> {
+fn ray_color(ray_ptr: ptr<function, Ray>) -> vec3<f32> {
     var rec = HitRecord();
     var multiplier = vec3<f32>(1.0, 1.0, 1.0);
     for (var i = 0; i < max_depth; i = i+1) {
-        if (spheres_hit(spheres, *ray_ptr, Interval(0.001, infinity), &rec)) {
+        if (spheres_hit(*ray_ptr, Interval(0.001, infinity), &rec)) {
             var scattered = Ray();
             var attenuation = vec3<f32>();
             if (scatter(rec.material, *ray_ptr, &rec, &attenuation, &scattered)) {
@@ -135,7 +131,7 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
 }
 
 @group(1) @binding(0)
-var<storage, read> predefined_spheres: array<Sphere>;
+var<storage, read> spheres: array<Sphere>;
 struct Material {
     // 0 .. lambertian, 1 .. metal, 2 .. dielectric
     material: i32,
@@ -248,13 +244,13 @@ fn sphere_hit(sphere: Sphere, ray: Ray, ray_t: Interval, rec: ptr<function, HitR
     return true;
 }
 
-fn spheres_hit(spheres: ptr<function, array<Sphere, SphereNum>>, ray: Ray, ray_t: Interval, hit_record_ptr: ptr<function, HitRecord>) -> bool {
+fn spheres_hit(ray: Ray, ray_t: Interval, hit_record_ptr: ptr<function, HitRecord>) -> bool {
     var temp_rec = HitRecord();
     var hit_anything = false;
     var closest_so_far = ray_t.max;
 
-    for (var i = 0; i < SphereNum; i = i+1) {
-        var sphere = (*spheres)[i];
+    for (var i = 0u; i < arrayLength(&spheres); i = i+1u) {
+        var sphere = spheres[i];
         if (sphere.radius < 0.001) {
             continue;
         }
@@ -299,49 +295,12 @@ fn adjust_color(pixel_color: vec3<f32>, samples_per_pixel: i32) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var spheres = array<Sphere, SphereNum>();
-
-    // for (var a = -2; a <= 2; a = a+1) {
-    //     for (var b = -2; b <= 2; b = b+1) {
-    //         var choose_mat = random();
-    //         var center = vec3<f32>(f32(a*2) + 0.9*random(), f32(b*2) + 0.9*random(), 0.2);
-    //         var index = (a+2)*5 + b+2;
-
-    //         if (choose_mat < 0.8) {
-    //             // diffuse
-    //             var albedo = vec3_random() * vec3_random();
-    //             var sphere_material = Material(0, 0.0, albedo, 0.0);
-    //             spheres[index] = Sphere(center, 0.2, sphere_material);
-    //         } else if (choose_mat < 0.95) {
-    //             // metal
-    //             var albedo = vec3_random_double(0.5, 1.0);
-    //             var fuzz = random_double(0.0, 0.5);
-    //             var sphere_material = Material(1, fuzz, albedo, 0.0);
-    //             spheres[index] = Sphere(center, 0.2, sphere_material);
-    //         } else {
-    //             // glass
-    //             var sphere_material = Material(2, 0.0, vec3<f32>(), 1.5);
-    //             spheres[index] = Sphere(center, 0.2, sphere_material);
-    //         }
-    //     }
-    // }
-
-    // var material_ground = predefined_materials[0];
-    // spheres[0] = Sphere(vec3<f32>(0.0, 0.0, -1000.0), 1000.0, material_ground);
-    // var material1 = predefined_materials[1];
-    // spheres[1] = Sphere(vec3<f32>(0.0, 0.0, 1.0), 1.0, material1);
-    // var material2 = predefined_materials[2];
-    // spheres[2] = Sphere(vec3<f32>(-4.0, 0.0, 1.0), 1.0, material2);
-    // var material3 = predefined_materials[3];
-    // spheres[3] = Sphere(vec3<f32>(4.0, 0.0, 1.0), 1.0, material3);
-    spheres = array<Sphere, SphereNum>(predefined_spheres[0], predefined_spheres[1], predefined_spheres[2], predefined_spheres[3]);
-
     seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);
 
     var color = vec3<f32>(0.0, 0.0, 0.0);
     for (var sample = 0; sample < samples_per_pixel; sample = sample+1) {
         var ray = get_ray(in.position);
-        color += ray_color(&ray, &spheres);
+        color += ray_color(&ray);
     }
     return vec4<f32>(adjust_color(color, samples_per_pixel), 1.0);
 }
