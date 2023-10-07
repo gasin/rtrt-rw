@@ -133,11 +133,13 @@ fn ray_color(ray_ptr: ptr<function, Ray>, spheres: ptr<function, array<Sphere, S
     return vec3<f32>(0.0, 0.0, 0.0);
 }
 
+@group(1) @binding(0)
+var<storage, read> predefined_materials: array<Material>;
 struct Material {
     // 0 .. lambertian, 1 .. metal, 2 .. dielectric
     material: i32,
-    albedo: vec3<f32>,
     fuzz: f32,
+    albedo: vec3<f32>,
     ir: f32,
 };
 fn scatter(
@@ -307,29 +309,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             if (choose_mat < 0.8) {
                 // diffuse
                 var albedo = vec3_random() * vec3_random();
-                var sphere_material = Material(0, albedo, 0.0, 0.0);
+                var sphere_material = Material(0, 0.0, albedo, 0.0);
                 spheres[index] = Sphere(center, 0.2, sphere_material);
             } else if (choose_mat < 0.95) {
                 // metal
                 var albedo = vec3_random_double(0.5, 1.0);
                 var fuzz = random_double(0.0, 0.5);
-                var sphere_material = Material(1, albedo, fuzz, 0.0);
+                var sphere_material = Material(1, fuzz, albedo, 0.0);
                 spheres[index] = Sphere(center, 0.2, sphere_material);
             } else {
                 // glass
-                var sphere_material = Material(2, vec3<f32>(), 0.0, 1.5);
+                var sphere_material = Material(2, 0.0, vec3<f32>(), 1.5);
                 spheres[index] = Sphere(center, 0.2, sphere_material);
             }
         }
     }
 
-    var material_ground = Material(0, vec3<f32>(0.5, 0.5, 0.5), 0.0, 1.5);
+    var material_ground = predefined_materials[0];
     spheres[25] = Sphere(vec3<f32>(0.0, 0.0, -1000.0), 1000.0, material_ground);
-    var material1 = Material(2, vec3<f32>(), 0.0, 1.5);
+    var material1 = predefined_materials[1];
     spheres[26] = Sphere(vec3<f32>(0.0, 0.0, 1.0), 1.0, material1);
-    var material2 = Material(0, vec3<f32>(0.4, 0.2, 0.1), 0.0, 0.0);
+    var material2 = predefined_materials[2];
     spheres[27] = Sphere(vec3<f32>(-4.0, 0.0, 1.0), 1.0, material2);
-    var material3 = Material(1, vec3<f32>(0.7, 0.6, 0.5), 0.0, 0.0);
+    var material3 = predefined_materials[3];
     spheres[28] = Sphere(vec3<f32>(4.0, 0.0, 1.0), 1.0, material3);
 
     seed = u32(clip(in.position.x) * 100000000.0 + clip(in.position.y) * 10000.0);

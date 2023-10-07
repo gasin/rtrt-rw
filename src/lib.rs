@@ -34,6 +34,17 @@ impl Vertex {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Material {
+    // 0 .. lambertian, 1 .. metal, 2 .. dielectric
+    material: i32,
+    fuzz: f32,
+    _padding1: [u32; 2],
+    albedo: [f32; 3],
+    ir: f32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Camera {
     position: [f32; 3],
     _padding: u32,
@@ -155,6 +166,7 @@ struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     window: Window,
+    material_bind_group: wgpu::BindGroup,
     camera: Camera,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -250,6 +262,70 @@ impl State {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
+        let materials = [
+            Material{
+                material: 0,
+                fuzz: 0.0,
+                _padding1: [0, 0],
+                albedo: [0.5, 0.5, 0.5],
+                ir: 1.5,
+            },
+            Material{
+                material: 2,
+                fuzz: 0.0,
+                _padding1: [0, 0],
+                albedo: [0.5, 0.5, 0.5],
+                ir: 1.5,
+            },
+            Material{
+                material: 0,
+                fuzz: 0.0,
+                _padding1: [0, 0],
+                albedo: [0.4, 0.2, 0.1],
+                ir: 0.0,
+            },
+            Material{
+                material: 1,
+                fuzz: 0.0,
+                _padding1: [0, 0],
+                albedo: [0.7, 0.6, 0.5],
+                ir: 0.0,
+            },
+        ];
+        let material_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Material Buffer"),
+                contents: bytemuck::cast_slice(&materials),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+        let material_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("material_bind_group_layout"),
+        });
+        let material_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &material_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: material_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("material_bind_group"),
+        });
 
         let camera = Camera{
             position: [6.0, 5.0, 2.0],
@@ -299,7 +375,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&camera_bind_group_layout, &material_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -358,6 +434,7 @@ impl State {
             index_buffer,
             num_indices,
             window,
+            material_bind_group,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -426,6 +503,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.material_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
