@@ -175,7 +175,7 @@ struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     window: Window,
-    material_bind_group: wgpu::BindGroup,
+    sphere_bind_group: wgpu::BindGroup,
     camera: Camera,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -382,14 +382,14 @@ impl State {
                 },
             }
         );
-        let material_buffer = device.create_buffer_init(
+        let sphere_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Material Buffer"),
                 contents: bytemuck::cast_slice(&spheres),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             }
         );
-        let material_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let sphere_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -404,17 +404,17 @@ impl State {
                     count: None,
                 }
             ],
-            label: Some("material_bind_group_layout"),
+            label: Some("sphere_bind_group_layout"),
         });
-        let material_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &material_bind_group_layout,
+        let sphere_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &sphere_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: material_buffer.as_entire_binding(),
+                    resource: sphere_buffer.as_entire_binding(),
                 }
             ],
-            label: Some("material_bind_group"),
+            label: Some("sphere_bind_group"),
         });
 
         let camera = Camera{
@@ -465,7 +465,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &material_bind_group_layout],
+                bind_group_layouts: &[&camera_bind_group_layout, &sphere_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -524,7 +524,7 @@ impl State {
             index_buffer,
             num_indices,
             window,
-            material_bind_group,
+            sphere_bind_group,
             camera,
             camera_buffer,
             camera_bind_group,
@@ -593,7 +593,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.material_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.sphere_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
